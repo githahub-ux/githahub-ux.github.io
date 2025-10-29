@@ -1,192 +1,931 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simples Snake Game</title>
+    <title>3D Physics Sandbox</title>
     <style>
+        /* --- Fixed Dark Theme Styling --- */
+        :root {
+            --bg-main: #111827;
+            --bg-canvas: #1f2937;
+            --bg-ui: rgba(31, 41, 55, 0.9);
+            --bg-ui-header-border: #374151;
+            --text-main: #f3f4f6;
+            --color-accent: #60a5fa;
+            --color-secondary-bg: #374151;
+            --color-secondary-hover: #4b5563;
+            --color-primary-bg: #60a5fa;
+            --color-primary-text: #1f2937;
+            --color-reset-bg: #ef4444;
+            --color-reset-hover: #dc2626;
+            --color-shadow: rgba(0, 0, 0, 0.5);
+        }
+
+        /* Base Styling & Polish */
         body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+        }
+        canvas {
+            display: block;
+            background-color: var(--bg-canvas);
+        }
+        .ui-box {
+            position: absolute;
+            z-index: 5;
+            background: var(--bg-ui);
+            backdrop-filter: blur(8px);
+            border-radius: 12px;
+            box-shadow: 0 8px 20px var(--color-shadow);
+            border: 1px solid var(--bg-ui-header-border);
+            transition: all 0.3s ease;
+        }
+        .ui-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--color-accent);
+        }
+
+        /* Full Screen Menu Containers */
+        #instructions, #settings-panel {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: none; 
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            z-index: 10;
+            background-color: var(--bg-main);
+        }
+        
+        /* Instructions Panel Styling - FURTHER REDUCED MAX-WIDTH & PADDING */
+        #instructions-content {
+            width: 90%;
+            max-width: 350px; /* Adjusted for "wider" text flow */
+            padding: 1.25rem; /* Reduced for "smaller" overall footprint */
+        }
+        #instructions h1 {
+            font-size: 1.75rem; /* Reduced for "smaller" text */
+            margin-bottom: 0.8rem;
+            color: var(--color-accent);
+        }
+        #instructions p {
+            font-size: 0.85rem; /* Reduced for "smaller" text */
+            opacity: 0.9;
+            margin-bottom: 1.25rem; /* Reduced for "smaller" spacing */
+            line-height: 1.5;
+            font-weight: 400; /* Ensuring no bold */
+        }
+        
+        /* Settings Panel specific styling (kept similar size) */
+        #settings-content {
+            width: 90%;
+            max-width: 550px;
+            text-align: left;
+            padding: 1.5rem;
+        }
+        .setting-group {
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px dashed var(--bg-ui-header-border);
+        }
+        .setting-group:last-child {
+            border-bottom: none;
+        }
+        .setting-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--text-main);
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            -webkit-appearance: none;
+            background: var(--bg-ui-header-border);
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--color-accent);
+            box-shadow: 0 0 5px var(--color-accent);
+        }
+
+        /* Crosshair */
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 8px;
+            height: 8px;
+            border: 2px solid var(--text-main);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            display: none;
+            box-shadow: 0 0 5px var(--text-main);
+        }
+
+        /* GUI (Spawner) */
+        #gui {
+            top: 20px;
+            left: 20px;
+            width: 200px; 
+            padding: 0.75rem; 
             display: flex;
             flex-direction: column;
+        }
+        .gui-header {
+            display: flex;
+            justify-content: space-between;
             align-items: center;
-            font-family: Arial, sans-serif;
-            background-color: #f0f0f0;
-            margin-top: 50px;
+            border-bottom: 1px solid var(--bg-ui-header-border);
+            padding-bottom: 0.5rem;
+        }
+        .gui-content {
+            transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out; 
+            overflow: hidden;
+            max-height: 500px;
+            opacity: 1;
+            padding-top: 0.75rem; 
+            margin-top: 0; 
+        }
+        #gui.collapsed .gui-content {
+            max-height: 0;
+            opacity: 0;
+            padding-top: 0;
+            margin-top: 0;
+        }
+        .gui-control {
+            margin-top: 0.75rem;
         }
 
-        canvas {
-            background-color: #333;
-            border: 2px solid #555;
-        }
-
-        h1 {
-            color: #333;
-        }
-
-        p {
-            font-size: 1.2em;
-            color: #555;
-        }
-
-        button {
-            margin-top: 20px;
-            padding: 10px 20px;
-            font-size: 1em;
-            cursor: pointer;
-            background-color: #4CAF50;
-            color: white;
+        /* Buttons */
+        .btn-primary {
+            display: block;
+            width: 100%;
+            margin: 10px 0;
+            padding: 10px 16px;
+            background: var(--color-primary-bg);
+            color: var(--color-primary-text);
             border: none;
-            border-radius: 5px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: background 0.1s ease, transform 0.1s ease;
         }
-
-        button:hover {
-            background-color: #45a049;
+        .btn-primary:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        .btn-secondary {
+            display: block;
+            width: 100%;
+            margin: 8px 0;
+            padding: 8px 16px;
+            background: var(--color-secondary-bg);
+            color: var(--text-main);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: background 0.1s ease, transform 0.1s ease;
+        }
+        .btn-secondary:hover {
+            background: var(--color-secondary-hover);
+            transform: translateY(-1px);
+        }
+        .btn-reset {
+            background: var(--color-reset-bg);
+            color: white;
+            padding: 4px 8px;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+        .btn-reset:hover {
+            background: var(--color-reset-hover);
+        }
+        /* Toggle button for GUI */
+        .toggle-btn {
+            width: 30px;
+            padding: 2px;
+            margin: 0;
+            height: 30px;
+            font-size: 1.2rem;
+            line-height: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: var(--color-secondary-bg);
+            border-radius: 50%;
+        }
+        .toggle-btn:hover {
+            background: var(--color-secondary-hover);
+        }
+        /* Speed Display (Now in Bottom Right Corner) */
+        #speed-display {
+            bottom: 20px;
+            right: 20px;
+            top: auto; 
+            left: auto; 
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--color-accent);
+            padding: 0.5rem 0.75rem;
+        }
+        select {
+            background: var(--color-secondary-bg);
+            color: var(--text-main);
+            border: 1px solid var(--bg-ui-header-border);
         }
     </style>
 </head>
-<body>
-    <h1>Snake Game</h1>
-    <canvas id="gameCanvas" width="400" height="400"></canvas>
-    <p>Punkte: <span id="score">0</span></p>
-    <button id="startButton">Spiel starten</button>
+<body id="app-body">
+    <!-- Theme Toggle Button REMOVED -->
+
+    <!-- 1. INSTRUCTIONS / PAUSE MENU SCREEN (New starting point) -->
+    <div id="instructions">
+        <div id="instructions-content" class="ui-box">
+            <h1>Physics Sandbox</h1>
+            <p>
+                Welcome to this individual game experience. Here, you can spawn, pick up, and throw objects in a fully customizable 3D physics environment.
+                <br><br>
+                Use the W, A, S, D keys and Mouse to move.
+                Click (Left Mouse) to pick up or throw objects.
+                <br>
+                Press T to unlock the mouse and use the Spawner GUI, or Escape to open this menu.
+            </p>
+            <button id="resumeGameBtn" class="btn-primary">Start Simulation</button>
+            <button id="openSettingsBtn" class="btn-secondary">Settings</button>
+            <button id="restartSimulationBtn" class="btn-secondary">Restart Simulation</button> 
+        </div>
+    </div>
+    
+    <!-- 2. SETTINGS PANEL -->
+    <div id="settings-panel">
+        <div id="settings-content" class="ui-box">
+            <div class="ui-title">Game Settings</div>
+
+            <div class="setting-group">
+                <div class="setting-label">
+                    <span>Movement Speed (10 steps)</span>
+                    <button id="resetSpeed" class="btn-reset">Reset</button>
+                </div>
+                <input type="range" id="moveSpeedRange" min="0" max="9" value="9" step="1"> 
+                <span id="moveSpeedValue" style="display: block; text-align: center; margin-top: 5px;">100.0</span>
+            </div>
+
+            <div class="setting-group">
+                <div class="setting-label">
+                    <span>Physics: Gravity Y (m/s²)</span>
+                    <button id="resetGravity" class="btn-reset">Reset</button>
+                </div>
+                <input type="range" id="gravityRange" min="-30" max="0" value="-9.82" step="0.1">
+                <span id="gravityValue" style="display: block; text-align: center; margin-top: 5px;">-9.82</span>
+            </div>
+            
+            <div class="setting-group">
+                <div class="setting-label">
+                    <span>Throw Force</span>
+                    <button id="resetThrowForce" class="btn-reset">Reset</button>
+                </div>
+                <input type="range" id="throwForceRange" min="5" max="50" value="15" step="1">
+                <span id="throwForceValue" style="display: block; text-align: center; margin-top: 5px;">15</span>
+            </div>
+
+            <button id="closeSettingsBtn" class="btn-primary">Back to Instructions</button>
+        </div>
+    </div>
+
+    <!-- 3. IN-GAME HUD ELEMENTS -->
+    <div id="crosshair"></div>
+    <div id="gui" class="ui-box collapsed" style="opacity: 0; pointer-events: none;">
+        <div class="gui-header">
+            <div class="ui-title" style="border-bottom: none; margin-bottom: 0;">Object Spawner</div>
+            <button id="toggleGuiBtn" class="btn-secondary toggle-btn">
+                <span id="toggleIcon">▼</span>
+            </button>
+        </div>
+        
+        <div class="gui-content">
+            <div class="gui-control">
+                <div class="setting-label" style="justify-content: start; font-weight: normal;">Object Type</div>
+                <select id="objectType" class="btn-secondary" style="width: 100%; text-align: left; padding: 6px 10px;">
+                    <option value="box">Cube (Box)</option>
+                    <option value="sphere">Sphere</option>
+                    <option value="cylinder">Cylinder</option>
+                </select>
+            </div>
+            
+            <div class="gui-control">
+                <div class="setting-label" style="justify-content: start; font-weight: normal;">Size Multiplier (1.0 - 5.0)</div>
+                <input type="range" id="sizeRange" min="1.0" max="5.0" value="1.0" step="0.5">
+                <span id="sizeValue" style="display: block; text-align: center; margin-top: 5px;">1.0</span>
+            </div>
+
+            <button id="summonObjectBtn" class="btn-primary" style="margin-top: 15px;">Summon Object</button>
+        </div>
+    </div>
+    <div id="speed-display" class="ui-box" style="opacity: 0;">Speed: 100</div>
+
+    <!-- 3D and Physics Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+
     <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const scoreDisplay = document.getElementById('score');
-        const startButton = document.getElementById('startButton');
-
-        const gridSize = 20; // Größe einer Zelle (px)
-        let snake = [{ x: 10, y: 10 }]; // Startposition der Schlange
-        let food = {}; // Position des Futters
-        let direction = 'right'; // Startrichtung
-        let score = 0;
-        let gameInterval;
-        let gameSpeed = 150; // Millisekunden pro Frame
-
-        function generateFood() {
-            food = {
-                x: Math.floor(Math.random() * (canvas.width / gridSize)),
-                y: Math.floor(Math.random() * (canvas.height / gridSize))
+        // --- PointerLockControls Class (Required for 1st person) ---
+        THREE.PointerLockControls = function (camera, domElement) {
+            if (domElement === undefined) {
+                console.warn('THREE.PointerLockControls: The second parameter "domElement" is now mandatory.');
+                domElement = document.body;
+            }
+            this.domElement = domElement;
+            this.isLocked = false;
+            var scope = this;
+            var changeEvent = { type: 'change' };
+            var lockEvent = { type: 'lock' };
+            var unlockEvent = { type: 'unlock' };
+            var euler = new THREE.Euler(0, 0, 0, 'YXZ');
+            var PI_2 = Math.PI / 2;
+            var vec = new THREE.Vector3();
+            function onMouseMove(event) {
+                if (scope.isLocked === false) return;
+                var movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
+                var movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
+                euler.setFromQuaternion(camera.quaternion);
+                euler.y -= movementX * 0.002;
+                euler.x -= movementY * 0.002;
+                euler.x = Math.max(-PI_2, Math.min(PI_2, euler.x));
+                camera.quaternion.setFromEuler(euler);
+                scope.dispatchEvent(changeEvent);
+            }
+            function onPointerlockChange() {
+                if (document.pointerLockElement === scope.domElement) {
+                    scope.dispatchEvent(lockEvent);
+                    scope.isLocked = true;
+                } else {
+                    scope.dispatchEvent(unlockEvent);
+                    scope.isLocked = false;
+                }
+            }
+            function onPointerlockError() {
+                console.error('THREE.PointerLockControls: Unable to use Pointer Lock API');
+            }
+            this.connect = function () {
+                document.addEventListener('mousemove', onMouseMove, false);
+                document.addEventListener('pointerlockchange', onPointerlockChange, false);
+                document.addEventListener('pointerlockerror', onPointerlockError, false);
             };
+            this.disconnect = function () {
+                document.removeEventListener('mousemove', onMouseMove, false);
+                document.removeEventListener('pointerlockchange', onPointerlockChange, false);
+                document.removeEventListener('pointerlockerror', onPointerlockError, false);
+            };
+            this.dispose = function () {
+                this.disconnect();
+            };
+            this.getObject = function () {
+                return camera;
+            };
+            this.getDirection = function () {
+                var v = new THREE.Vector3(0, 0, -1);
+                return function (v) {
+                    return v.applyQuaternion(camera.quaternion);
+                };
+            }();
+            this.lock = function () {
+                this.domElement.requestPointerLock();
+            };
+            this.unlock = function () {
+                document.exitPointerLock();
+            };
+            this.connect();
+        };
+        THREE.PointerLockControls.prototype = Object.create(THREE.EventDispatcher.prototype);
+        THREE.PointerLockControls.prototype.constructor = THREE.PointerLockControls;
+        // --- End of PointerLockControls ---
+
+
+        // --- Theme Management REMOVED ---
+        // The application now uses a fixed dark theme.
+
+        // --- Game Constants & State ---
+        const DAMPING = 10.0;
+        const CAMERA_HEIGHT = 1.8;
+        
+        // Default Constants for Reset
+        const DEFAULT_THROW_FORCE = 15;
+        const DEFAULT_GRAVITY_Y = -9.82;
+        
+        // Speed steps are now 10, 20, 30... 100
+        const SPEED_STEPS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+        const DEFAULT_SPEED_INDEX = 9; // Index 9 maps to 100
+        
+        // Settings State
+        let THROW_FORCE = DEFAULT_THROW_FORCE;
+        let GRAVITY_Y = DEFAULT_GRAVITY_Y;
+        let currentSpeedIndex = DEFAULT_SPEED_INDEX;
+        let menuShouldAppear = true; 
+        
+        let scene, camera, renderer, world, controls;
+        let objectsToUpdate = [];
+        let pickedObject = null;
+        let moveForward = false;
+        let moveBackward = false;
+        let moveLeft = false;
+        let moveRight = false;
+        let prevTime = performance.now();
+        let gameInitialized = false;
+
+        let moveSpeed = SPEED_STEPS[currentSpeedIndex];
+        const velocity = new THREE.Vector3();
+        const direction = new THREE.Vector3();
+        const raycaster = new THREE.Raycaster();
+
+        // DOM Elements
+        const instructions = document.getElementById('instructions');
+        const settingsPanel = document.getElementById('settings-panel');
+        const crosshair = document.getElementById('crosshair');
+        const speedDisplay = document.getElementById('speed-display');
+        const gui = document.getElementById('gui');
+
+
+        // --- Initialization and Setup ---
+        window.onload = function () {
+            init();
+            animate(); // Start the animation loop immediately, but the game is paused until the menu is closed.
         }
 
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height); // Canvas leeren
+        function init() {
+            if (gameInitialized) return;
 
-            // Schlange zeichnen
-            for (let i = 0; i < snake.length; i++) {
-                ctx.fillStyle = (i === 0) ? 'green' : 'lime'; // Kopf grün, Rest hellgrün
-                ctx.fillRect(snake[i].x * gridSize, snake[i].y * gridSize, gridSize, gridSize);
-                ctx.strokeStyle = 'darkgreen';
-                ctx.strokeRect(snake[i].x * gridSize, snake[i].y * gridSize, gridSize, gridSize);
-            }
+            // Scene Setup
+            scene = new THREE.Scene();
+            // Use current computed style to ensure background matches CSS variable
+            scene.background = new THREE.Color(getComputedStyle(document.body).getPropertyValue('--bg-canvas'));
+            scene.fog = new THREE.Fog(scene.background.getHex(), 0, 100); 
 
-            // Futter zeichnen
-            ctx.fillStyle = 'red';
-            ctx.fillRect(food.x * gridSize, food.y * gridSize, gridSize, gridSize);
-            ctx.strokeStyle = 'darkred';
-            ctx.strokeRect(food.x * gridSize, food.y * gridSize, gridSize, gridSize);
+            // Camera Setup
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.y = CAMERA_HEIGHT;
+            camera.position.z = 5;
+
+            // Renderer Setup
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+            renderer.domElement.style.display = 'block'; 
+
+            // Physics World Setup
+            world = new CANNON.World();
+            world.gravity.set(0, GRAVITY_Y, 0); 
+            world.broadphase = new CANNON.NaiveBroadphase();
+            world.solver.iterations = 10;
+
+            // Controls Setup
+            controls = new THREE.PointerLockControls(camera, renderer.domElement);
+            controls.getObject().visible = false;
+            scene.add(controls.getObject());
+
+            // Initial Environment Setup (Ground and Lights)
+            setupEnvironment();
+
+            // --- Event Listeners ---
+            // Removed theme toggle listener
+            document.getElementById('resumeGameBtn').addEventListener('click', showGameScreen);
+            document.getElementById('openSettingsBtn').addEventListener('click', () => showMenu(settingsPanel));
+            document.getElementById('closeSettingsBtn').addEventListener('click', () => showMenu(instructions));
+            document.getElementById('restartSimulationBtn').addEventListener('click', () => window.location.reload());
+            document.getElementById('summonObjectBtn').addEventListener('click', (event) => {
+                event.stopPropagation();
+                summonObject();
+            });
+            document.getElementById('toggleGuiBtn').addEventListener('click', toggleGUI); 
+
+            controls.addEventListener('lock', () => {
+                hideMenus();
+                crosshair.style.display = 'block';
+                speedDisplay.style.opacity = '1';
+                gui.style.opacity = '1';
+                gui.style.pointerEvents = 'auto';
+                menuShouldAppear = true;
+                controls.getObject().visible = true;
+            });
+            controls.addEventListener('unlock', () => {
+                updateSettingsUIFromGameState(); 
+                crosshair.style.display = 'none';
+                speedDisplay.style.opacity = '0';
+
+                if (menuShouldAppear) {
+                    showMenu(instructions); 
+                    gui.style.opacity = '0';
+                    gui.style.pointerEvents = 'none';
+                    controls.getObject().visible = false;
+                } else {
+                    gui.style.opacity = '1';
+                    gui.style.pointerEvents = 'auto';
+                    hideMenus(); 
+                }
+                menuShouldAppear = true;
+                pickedObject = null;
+            });
+
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+            document.addEventListener('mousedown', onMouseDown);
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('wheel', onMouseWheel);
+
+            setupSettingsListeners();
+            updateSpeedDisplay();
+            updateSettingsUIFromGameState(); 
+            updateToggleIcon();
+            
+            // Show the Instructions menu immediately as the new starting screen
+            showMenu(instructions); 
+            gameInitialized = true;
         }
 
-        function update() {
-            const head = { x: snake[0].x, y: snake[0].y };
+        // --- Screen Management ---
 
-            switch (direction) {
-                case 'up':
-                    head.y--;
-                    break;
-                case 'down':
-                    head.y++;
-                    break;
-                case 'left':
-                    head.x--;
-                    break;
-                case 'right':
-                    head.x++;
-                    break;
-            }
+        function showGameScreen() {
+            controls.lock();
+        }
 
-            // Kollision mit Wänden
-            if (head.x < 0 || head.x >= canvas.width / gridSize ||
-                head.y < 0 || head.y >= canvas.height / gridSize) {
-                endGame();
-                return;
-            }
+        function hideMenus() {
+            instructions.style.display = 'none';
+            settingsPanel.style.display = 'none';
+        }
 
-            // Kollision mit sich selbst
-            for (let i = 1; i < snake.length; i++) {
-                if (head.x === snake[i].x && head.y === snake[i].y) {
-                    endGame();
-                    return;
-                }
-            }
+        function showMenu(menuElement) {
+            controls.unlock();
+            hideMenus();
+            menuElement.style.display = 'flex';
+        }
+        
+        // --- End Screen Management ---
 
-            snake.unshift(head); // Neuen Kopf hinzufügen
+        function toggleGUI() {
+            const guiElement = document.getElementById('gui');
+            guiElement.classList.toggle('collapsed');
+            updateToggleIcon();
+        }
 
-            // Futter gefressen?
-            if (head.x === food.x && head.y === food.y) {
-                score++;
-                scoreDisplay.textContent = score;
-                generateFood(); // Neues Futter generieren
-                // Geschwindigkeit erhöhen (optional)
-                if (gameSpeed > 50) {
-                    gameSpeed -= 5;
-                    clearInterval(gameInterval);
-                    gameInterval = setInterval(gameLoop, gameSpeed);
-                }
+        function updateToggleIcon() {
+            const guiElement = document.getElementById('gui');
+            const icon = document.getElementById('toggleIcon');
+            if (guiElement.classList.contains('collapsed')) {
+                icon.textContent = '▼'; 
             } else {
-                snake.pop(); // Schwanz entfernen, wenn kein Futter gefressen wurde
+                icon.textContent = '▲'; 
+            }
+        }
+
+
+        function setupEnvironment() {
+             // Lighting
+            const ambientLight = new THREE.AmbientLight(0xaaaaaa, 0.5);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(5, 20, 10);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            scene.add(directionalLight);
+
+            // Ground 
+            const groundShape = new CANNON.Plane();
+            const groundBody = new CANNON.Body({ mass: 0 });
+            groundBody.addShape(groundShape);
+            groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+            world.addBody(groundBody);
+
+            // Populate the scene with initial objects
+            for (let i = 0; i < 75; i++) {
+                const type = Math.random() > 0.66 ? 'box' : (Math.random() > 0.5 ? 'sphere' : 'cylinder');
+                createPhysicalObject(
+                    type, 
+                    0.5 + Math.random() * 1.5, // sizeMult
+                    new CANNON.Vec3( (Math.random() - 0.5) * 30, Math.random() * 10 + 5, (Math.random() - 0.5) * 30 ),
+                    new CANNON.Vec3( (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2 )
+                );
+            }
+        }
+
+        // --- Settings System ---
+
+        function updateSettingsUIFromGameState() {
+            // Speed
+            const speedRange = document.getElementById('moveSpeedRange');
+            const speedValue = document.getElementById('moveSpeedValue');
+            speedRange.value = currentSpeedIndex;
+            speedValue.textContent = moveSpeed.toFixed(1);
+
+            // Gravity
+            const gravityRange = document.getElementById('gravityRange');
+            const gravityValue = document.getElementById('gravityValue');
+            gravityRange.value = GRAVITY_Y;
+            gravityValue.textContent = GRAVITY_Y.toFixed(2);
+
+            // Throw Force
+            const throwForceRange = document.getElementById('throwForceRange');
+            const throwForceValue = document.getElementById('throwForceValue');
+            throwForceRange.value = THROW_FORCE;
+            throwForceValue.textContent = THROW_FORCE.toFixed(0);
+        }
+
+        function setupSettingsListeners() {
+            // Speed Listeners
+            const speedRange = document.getElementById('moveSpeedRange');
+            const speedValue = document.getElementById('moveSpeedValue');
+            document.getElementById('resetSpeed').addEventListener('click', () => {
+                currentSpeedIndex = DEFAULT_SPEED_INDEX;
+                moveSpeed = SPEED_STEPS[currentSpeedIndex];
+                updateSpeedDisplay();
+                updateSettingsUIFromGameState();
+            });
+            speedRange.addEventListener('input', () => {
+                currentSpeedIndex = parseInt(speedRange.value);
+                moveSpeed = SPEED_STEPS[currentSpeedIndex];
+                speedValue.textContent = moveSpeed.toFixed(1); 
+                updateSpeedDisplay(); 
+            });
+
+
+            // Gravity Listeners
+            const gravityRange = document.getElementById('gravityRange');
+            const gravityValueSpan = document.getElementById('gravityValue');
+            document.getElementById('resetGravity').addEventListener('click', () => {
+                GRAVITY_Y = DEFAULT_GRAVITY_Y;
+                world.gravity.set(0, GRAVITY_Y, 0); // Apply instantly
+                updateSettingsUIFromGameState();
+            });
+            gravityRange.addEventListener('input', () => {
+                GRAVITY_Y = parseFloat(gravityRange.value);
+                gravityValueSpan.textContent = GRAVITY_Y.toFixed(2); 
+                world.gravity.set(0, GRAVITY_Y, 0); // Apply instantly
+            });
+
+            // Throw Force Listeners
+            const throwForceRange = document.getElementById('throwForceRange');
+            const throwForceValueSpan = document.getElementById('throwForceValue');
+            document.getElementById('resetThrowForce').addEventListener('click', () => {
+                THROW_FORCE = DEFAULT_THROW_FORCE;
+                updateSettingsUIFromGameState();
+            });
+            throwForceRange.addEventListener('input', () => {
+                THROW_FORCE = parseFloat(throwForceRange.value);
+                throwForceValueSpan.textContent = THROW_FORCE.toFixed(0); 
+            });
+
+            // Summon GUI Listeners to update display values
+            document.getElementById('sizeRange').addEventListener('input', (e) => document.getElementById('sizeValue').textContent = parseFloat(e.target.value).toFixed(1));
+        }
+
+        function updateSpeedDisplay() {
+            speedDisplay.textContent = `Speed: ${moveSpeed.toFixed(0)}`;
+        }
+
+
+        // --- Physical Object Creation ---
+
+        function createPhysicalObject(type, sizeMult, position, velocity) { 
+            let mesh, shape, materialSize;
+            const size = 0.5 * sizeMult; // Base size is 0.5, multiplied by mult
+
+            const mat = new THREE.MeshStandardMaterial({ 
+                color: Math.random() * 0xffffff,
+                metalness: 0.0,
+                roughness: 1.0 
+            });
+
+            let geometry;
+            if (type === 'box') {
+                materialSize = new CANNON.Vec3(size, size, size);
+                geometry = new THREE.BoxGeometry(size * 2, size * 2, size * 2);
+                shape = new CANNON.Box(materialSize);
+            } else if (type === 'sphere') {
+                materialSize = size;
+                geometry = new THREE.SphereGeometry(size, 32, 32);
+                shape = new CANNON.Sphere(materialSize);
+            } else if (type === 'cylinder') {
+                materialSize = size;
+                geometry = new THREE.CylinderGeometry(size, size, size * 2, 32);
+                shape = new CANNON.Cylinder(size, size, size * 2, 32);
+            }
+            
+            mesh = new THREE.Mesh(geometry, mat);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            
+            const body = new CANNON.Body({
+                mass: 1 * sizeMult,
+                shape: shape,
+                position: position,
+                velocity: velocity,
+                linearDamping: 0.1,
+                angularDamping: 0.1
+            });
+            
+            mesh.userData = { originalSizeMult: sizeMult };
+
+            scene.add(mesh);
+            world.addBody(body);
+            objectsToUpdate.push({ mesh, body });
+            return { mesh, body };
+        }
+
+        // --- Event Handlers ---
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function onMouseWheel(event) {
+            if (!controls.isLocked) return;
+            
+            const direction = event.deltaY > 0 ? -1 : 1; 
+            currentSpeedIndex = Math.max(0, Math.min(SPEED_STEPS.length - 1, currentSpeedIndex + direction));
+            moveSpeed = SPEED_STEPS[currentSpeedIndex];
+            updateSpeedDisplay();
+        }
+
+        function onKeyDown(event) {
+            switch (event.code) {
+                case 'KeyW': moveForward = true; break;
+                case 'KeyA': moveLeft = true; break;
+                case 'KeyS': moveBackward = true; break;
+                case 'KeyD': moveRight = true; break;
+                
+                case 'Escape': 
+                    menuShouldAppear = true; 
+                    controls.unlock(); 
+                    break;
+
+                case 'KeyT': 
+                    if (controls.isLocked) {
+                        menuShouldAppear = false; 
+                        controls.unlock();
+                    } else if (document.getElementById('settings-panel').style.display !== 'flex' && 
+                               document.getElementById('instructions').style.display !== 'flex') {
+                        controls.lock(); 
+                    }
+                    break;
+            }
+        }
+
+        function onKeyUp(event) {
+            switch (event.code) {
+                case 'KeyW': moveForward = false; break;
+                case 'KeyA': moveLeft = false; break;
+                case 'KeyS': moveBackward = false; break;
+                case 'KeyD': moveRight = false; break;
+            }
+        }
+
+        function onMouseDown(event) {
+            if (!controls.isLocked) return;
+
+            if (pickedObject) {
+                // Throw object
+                
+                pickedObject.mesh.scale.set(1, 1, 1); 
+                
+                world.addBody(pickedObject.body);
+                controls.getObject().remove(pickedObject.mesh);
+                scene.add(pickedObject.mesh);
+
+                const throwDirection = new THREE.Vector3();
+                camera.getWorldDirection(throwDirection);
+
+                const camPos = new THREE.Vector3();
+                camera.getWorldPosition(camPos);
+                const spawnPos = camPos.add(throwDirection.clone().multiplyScalar(1.5));
+                
+                const worldQuat = new THREE.Quaternion();
+                pickedObject.mesh.getWorldQuaternion(worldQuat);
+                
+                pickedObject.body.position.copy(spawnPos);
+                pickedObject.body.quaternion.copy(worldQuat);
+                
+                const camVelocity = velocity.clone().multiplyScalar(0.2);
+                throwDirection.multiplyScalar(THROW_FORCE).add(camVelocity);
+                
+                pickedObject.body.velocity.copy(throwDirection);
+                pickedObject = null;
+
+            } else {
+                // Pick up object
+                raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+                const intersects = raycaster.intersectObjects(objectsToUpdate.map(o => o.mesh));
+
+                if (intersects.length > 0) {
+                    const intersectedMesh = intersects[0].object;
+                    const object = objectsToUpdate.find(o => o.mesh === intersectedMesh);
+                    
+                    if (object && intersects[0].distance < 3) {
+                        pickedObject = object;
+                        world.removeBody(pickedObject.body);
+                        controls.getObject().add(pickedObject.mesh);
+                        
+                        const fixedHoldScale = 0.4 / intersectedMesh.userData.originalSizeMult; 
+                        pickedObject.mesh.scale.set(fixedHoldScale, fixedHoldScale, fixedHoldScale); 
+                        
+                        pickedObject.mesh.position.set(0.7, -0.3, -1.5);
+                        pickedObject.mesh.rotation.set(0, 0, 0);
+                    }
+                }
+            }
+        }
+
+        function summonObject() {
+            const type = document.getElementById('objectType').value;
+            const sizeMult = parseFloat(document.getElementById('sizeRange').value);
+
+            const camPos = new THREE.Vector3();
+            const camDir = new THREE.Vector3();
+            camera.getWorldPosition(camPos);
+            camera.getWorldDirection(camDir);
+
+            const spawnPos = camPos.add(camDir.clone().multiplyScalar(3));
+            
+            const spawnVel = camDir.clone().multiplyScalar(5);
+
+            createPhysicalObject(
+                type,
+                sizeMult, 
+                new CANNON.Vec3(spawnPos.x, spawnPos.y, spawnPos.z),
+                new CANNON.Vec3(spawnVel.x, spawnVel.y, spawnVel.z)
+            );
+        }
+
+
+        // --- Main Game Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const time = performance.now();
+            const delta = (time - prevTime) / 1000;
+
+            if (controls.isLocked) {
+                // Player movement
+                velocity.x -= velocity.x * DAMPING * delta;
+                velocity.z -= velocity.z * DAMPING * delta;
+
+                direction.z = Number(moveForward) - Number(moveBackward);
+                direction.x = Number(moveRight) - Number(moveLeft);
+                direction.normalize();
+
+                if (moveForward || moveBackward) velocity.z -= direction.z * moveSpeed * delta;
+                if (moveLeft || moveRight) velocity.x += direction.x * moveSpeed * delta; 
+                
+                controls.getObject().translateX(velocity.x * delta);
+                controls.getObject().translateZ(velocity.z * delta);
+
+                if (controls.getObject().position.y < CAMERA_HEIGHT) {
+                    controls.getObject().position.y = CAMERA_HEIGHT;
+                    velocity.y = 0;
+                }
             }
 
-            draw();
-        }
+            world.step(1 / 60, delta, 3);
+            
 
-        function endGame() {
-            clearInterval(gameInterval);
-            alert(`Game Over! Deine Punktzahl: ${score}`);
-            startButton.disabled = false; // Start-Button wieder aktivieren
-        }
-
-        function gameLoop() {
-            update();
-        }
-
-        function startGame() {
-            snake = [{ x: 10, y: 10 }];
-            direction = 'right';
-            score = 0;
-            scoreDisplay.textContent = score;
-            gameSpeed = 150;
-            generateFood();
-            draw(); // Initiales Zeichnen
-            clearInterval(gameInterval); // Alten Interval löschen, falls vorhanden
-            gameInterval = setInterval(gameLoop, gameSpeed);
-            startButton.disabled = true; // Start-Button deaktivieren während des Spiels
-        }
-
-        startButton.addEventListener('click', startGame);
-
-        // Steuerung über Tastatur
-        document.addEventListener('keydown', e => {
-            switch (e.key) {
-                case 'ArrowUp':
-                    if (direction !== 'down') direction = 'up';
-                    break;
-                case 'ArrowDown':
-                    if (direction !== 'up') direction = 'down';
-                    break;
-                case 'ArrowLeft':
-                    if (direction !== 'right') direction = 'left';
-                    break;
-                case 'ArrowRight':
-                    if (direction !== 'left') direction = 'right';
-                    break;
+            // Sync 3D meshes with physics bodies
+            for (const obj of objectsToUpdate) {
+                if (obj !== pickedObject) {
+                    obj.mesh.position.copy(obj.body.position);
+                    obj.mesh.quaternion.copy(obj.body.quaternion);
+                }
             }
-        });
+            
+            if (pickedObject) {
+                pickedObject.mesh.rotateX(0.01);
+                pickedObject.mesh.rotateY(0.013);
+            }
 
-        // Initiales Futter generieren und Spielbrett zeichnen
-        generateFood();
-        draw();
+            renderer.render(scene, camera);
+            prevTime = time;
+        }
     </script>
 </body>
 </html>
